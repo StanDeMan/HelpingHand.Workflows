@@ -49,7 +49,6 @@ namespace GingerMintSoft.WorkFlows
                 Console.WriteLine(JArray.Parse(content));
             }
 
-            Thread.Sleep(10000); // simulate longer processing delay
             log.LogInformation($"Saying hello to {name}.");
             return $"Hello {name}!";
         }
