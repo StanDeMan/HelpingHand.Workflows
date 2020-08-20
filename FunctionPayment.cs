@@ -14,7 +14,7 @@ namespace GingerMintSoft.WorkFlows
     // internal: GingerMintSoft.WorkFlows.
     using Payment;
 
-    public static class FunctionTest
+    public static class FunctionPayment
     {
         [FunctionName("PaymentTransaction")]
         public static async Task<string> RunOrchestrator(
