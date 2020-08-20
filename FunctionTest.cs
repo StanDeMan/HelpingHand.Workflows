@@ -1,14 +1,16 @@
 using System;
-using System.Net.Http;
+using System.IO;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.DurableTask;
-using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
+using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 
 namespace GingerMintSoft.WorkFlows
 {
+    using Newtonsoft.Json;
     // internal: GingerMintSoft.WorkFlows.
     using Payment;
 
@@ -18,43 +20,49 @@ namespace GingerMintSoft.WorkFlows
         public static async Task<string> RunOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context)
         {
-            var output = await context.CallActivityAsync<string>("DepositPayment", "Tokyo");
+            var requestBody = Convert.ToString(context.GetInput<dynamic>());
+            var output = await context.CallActivityAsync<string>("DepositPayment", requestBody);
                 
             return output;
         }
 
         [FunctionName("DepositPayment")]
-        public static async Task<string> Payment([ActivityTrigger] string name, ILogger log)
+        public static async Task<string> Payment([ActivityTrigger] string request, ILogger log)
         {
+#if DEBUG
             const string baseUri = "http://localhost:52719";
-            //const string baseUri = "https://helpinghandsservices.azurewebsites.net";
-
+#else
+            const string baseUri = "https://helpinghandsservices.azurewebsites.net";
+#endif
             var client = await Http.Create(baseUri);
 
-            var response = await client.GetAsync("HelpingHands/Users");
+            var content = "";
+            var response = await client.PostAsync("HelpingHands/Payment/Customer/Execute/Banktransfer", request);
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine(response.StatusCode);
+                log.LogInformation($"[2020.08.20:150240]: {response}.");
             }
             else
             {
-                var content = await response.Content.ReadAsStringAsync();
-                Console.WriteLine(JArray.Parse(content));
+                content = await response.Content.ReadAsStringAsync();
+                log.LogInformation($"DepositPayment: {content}.");
             }
 
-            log.LogInformation($"Saying hello to {name}.");
-            return $"Hello {name}!";
+            return $"{content}";
         }
 
-        [FunctionName("PaymentStart")]
-        public static async Task<HttpResponseMessage> HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestMessage req,
+        [FunctionName("StartBanktransfer")]
+        public static async Task<IActionResult> StartBanktransfer(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req,
             [DurableClient] IDurableOrchestrationClient starter,
             ILogger log)
         {
+            var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            dynamic request = JsonConvert.DeserializeObject(requestBody);
+
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync("PaymentTransaction", null);
+            var instanceId = await starter.StartNewAsync("PaymentTransaction", null, request);
 
             log.LogInformation($"Started payment transaction orchestration with ID = '{instanceId}'.");
 
