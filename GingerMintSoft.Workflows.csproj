@@ -4,10 +4,12 @@
     <AzureFunctionsVersion>v3</AzureFunctionsVersion>
     <AssemblyName>GingerMintSoft.WorkFlows</AssemblyName>
     <RootNamespace>GingerMintSoft.WorkFlows</RootNamespace>
+    <UserSecretsId>0e2d65ad-4e99-4672-b069-0a260458c40a</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="IdentityModel" Version="4.3.1" />
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.DurableTask" Version="2.2.2" />
+    <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Storage" Version="3.0.10" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="3.0.9" />
   </ItemGroup>
   <ItemGroup>

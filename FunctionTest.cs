@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
@@ -15,21 +14,17 @@ namespace GingerMintSoft.WorkFlows
 
     public static class FunctionTest
     {
-        [FunctionName("FunctionTest")]
-        public static async Task<List<string>> RunOrchestrator(
+        [FunctionName("PaymentTransaction")]
+        public static async Task<string> RunOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context)
         {
-            var outputs = new List<string>
-            {
-                await context.CallActivityAsync<string>("FunctionTestHello", "Tokyo"),
-                //await context.CallActivityAsync<string>("FunctionTestHello", "Seattle"),
-            };
-
-            return outputs;
+            var output = await context.CallActivityAsync<string>("DepositPayment", "Tokyo");
+                
+            return output;
         }
 
-        [FunctionName("FunctionTestHello")]
-        public static async Task<string> SayHello([ActivityTrigger] string name, ILogger log)
+        [FunctionName("DepositPayment")]
+        public static async Task<string> Payment([ActivityTrigger] string name, ILogger log)
         {
             const string baseUri = "http://localhost:52719";
             //const string baseUri = "https://helpinghandsservices.azurewebsites.net";
@@ -52,16 +47,16 @@ namespace GingerMintSoft.WorkFlows
             return $"Hello {name}!";
         }
 
-        [FunctionName("FunctionTestHttpStart")]
+        [FunctionName("PaymentStart")]
         public static async Task<HttpResponseMessage> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestMessage req,
             [DurableClient] IDurableOrchestrationClient starter,
             ILogger log)
         {
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync("FunctionTest", null);
+            var instanceId = await starter.StartNewAsync("PaymentTransaction", null);
 
-            log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
+            log.LogInformation($"Started payment transaction orchestration with ID = '{instanceId}'.");
 
             return starter.CreateCheckStatusResponse(req, instanceId);
         }
