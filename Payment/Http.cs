@@ -52,6 +52,11 @@ namespace GingerMintSoft.WorkFlows.Payment
         public string BaseUri { get; set; }
         public bool IsError { get; set; }
 
+        public bool ResetError
+        {
+            set => IsError = !value;
+        }
+
         public string Token
         {
             get => _token;

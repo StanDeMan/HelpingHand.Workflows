@@ -66,54 +66,6 @@ namespace GingerMintSoft.WorkFlows
             return output;
         }
 
-        [FunctionName("DepositPayment")]
-        public static async Task<string> Payment([ActivityTrigger] string request, ILogger log)
-        {
-            var content = "";
-            var httpClient = await Http.Create();
-            var response = await httpClient.PostAsync("HelpingHands/Payment/Customer/Execute/Banktransfer", request);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                log.LogInformation($"[2020.08.20:150240]: {response}.");
-            }
-            else
-            {
-                content = await response.Content.ReadAsStringAsync();
-                log.LogInformation($"DepositPayment: {content}.");
-            }
-
-            return $"{content}";
-        }
-
-        [FunctionName("CheckPaymentStatus")]
-        public static async Task<string> CheckPaymentStatus([ActivityTrigger] string paymentId, ILogger log)
-        {
-            var paid = "not paid";
-
-            var httpClient = await Http.Create();
-
-            var response = await httpClient.GetAsync($"HelpingHands/Payment/Customer/Transaction/State?paymentId={paymentId}");
-
-            if (response == null) return paid;
-
-            if (!response.IsSuccessStatusCode)
-            {
-                log.LogInformation($"[2020.08.20:150240]: {response}.");
-            }
-            else
-            {
-                var content = await response.Content.ReadAsStringAsync();
-                log.LogInformation($"DepositPayment: {content}.");
-
-                dynamic objOutput = JsonConvert.DeserializeObject(content);
-
-                paid = objOutput.Status.Value == "paid" ? "paid" : "not paid";
-            }
-
-            return paid;
-        }
-
         [FunctionName("StartBanktransfer")]
         public static async Task<IActionResult> StartBanktransfer(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req,
