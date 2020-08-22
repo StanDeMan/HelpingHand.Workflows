@@ -1,6 +1,4 @@
-﻿using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
-using GingerMintSoft.WorkFlows.Payment;
+﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
@@ -11,6 +9,9 @@ using Newtonsoft.Json;
 
 namespace GingerMintSoft.WorkFlows.WebHook
 {
+    // internal using: GingerMintSoft.WorkFlows.
+    using Communication;
+
     public static class PaymentStatus
     {
         [FunctionName("PaymentStatus")]

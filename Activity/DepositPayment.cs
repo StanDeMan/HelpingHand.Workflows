@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace GingerMintSoft.WorkFlows.Activity
 {
     // internal using: GingerMintSoft.WorkFlows.
-    using Payment;
+    using Communication;
 
     public static partial class Activity
     {

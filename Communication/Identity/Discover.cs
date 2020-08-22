@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using IdentityModel.Client;
 
-namespace GingerMintSoft.WorkFlows.Identity
+namespace GingerMintSoft.WorkFlows.Communication.Identity
 {
     public class Discover
     {

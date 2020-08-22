@@ -6,9 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using IdentityModel.Client;
 
-namespace GingerMintSoft.WorkFlows.Payment
+namespace GingerMintSoft.WorkFlows.Communication
 {
-    // internal: GingerMintSoft.WorkFlows.
+    // internal: GingerMintSoft.WorkFlows.Communication.
     using Identity;
 
     public class Http
