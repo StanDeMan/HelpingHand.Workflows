@@ -18,9 +18,30 @@ namespace GingerMintSoft.WorkFlows.Payment
             _client = new HttpClient();
         }
 
-        public static async Task<Http> Create(string baseUri)
+        public static async Task<Http> Create(string baseUri = null)
         {
-            var http = new Http {BaseUri = baseUri};
+            Http http;
+
+            if (baseUri == null)
+            {
+#if DEBUG
+                const string baseUriOwn = "http://localhost:52719";
+#else
+                const string baseUriOwn = "https://helpinghandsservices.azurewebsites.net";
+#endif
+                http = new Http
+                {
+                    BaseUri = baseUriOwn
+                };
+            }
+            else
+            {            
+                http = new Http
+                {
+                    BaseUri = baseUri
+                };
+            }
+
             await http.RequestToken();
             return http;
         }

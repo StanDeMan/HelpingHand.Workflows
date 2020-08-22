@@ -1,4 +1,5 @@
 using System;
+using System.Dynamic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +22,7 @@ namespace GingerMintSoft.WorkFlows
         public static async Task<string> CheckPayment(
             [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
-            var output = await context.CallActivityAsync<string>("CheckPaymentStatus", context.GetInput<string>());
+            var output = await context.CallActivityAsync<string>("CheckPaymentStatus", context.InstanceId);
                 
             log.LogInformation($"CheckPayment: {output}");
             return output;
@@ -34,9 +35,9 @@ namespace GingerMintSoft.WorkFlows
             var requestBody = Convert.ToString(context.GetInput<dynamic>());
             var output = await context.CallActivityAsync<string>("DepositPayment", requestBody);
             
-            var objOutput = JsonConvert.DeserializeObject(output);
+            var outputObj = JsonConvert.DeserializeObject(output);
 
-            if (objOutput.Status.Value != "open") 
+            if (outputObj.Status.Value != "open") 
                 return output;
 
             using (var timeout = new CancellationTokenSource())
@@ -68,14 +69,8 @@ namespace GingerMintSoft.WorkFlows
         [FunctionName("DepositPayment")]
         public static async Task<string> Payment([ActivityTrigger] string request, ILogger log)
         {
-#if DEBUG
-            const string baseUri = "http://localhost:52719";
-#else
-            const string baseUri = "https://helpinghandsservices.azurewebsites.net";
-#endif
-            var httpClient = await Http.Create(baseUri);
-
             var content = "";
+            var httpClient = await Http.Create();
             var response = await httpClient.PostAsync("HelpingHands/Payment/Customer/Execute/Banktransfer", request);
 
             if (!response.IsSuccessStatusCode)
@@ -95,14 +90,12 @@ namespace GingerMintSoft.WorkFlows
         public static async Task<string> CheckPaymentStatus([ActivityTrigger] string paymentId, ILogger log)
         {
             var paid = "not paid";
-#if DEBUG
-            const string baseUri = "http://localhost:52719";
-#else
-            const string baseUri = "https://helpinghandsservices.azurewebsites.net";
-#endif
-            var httpClient = await Http.Create(baseUri);
+
+            var httpClient = await Http.Create();
 
             var response = await httpClient.GetAsync($"HelpingHands/Payment/Customer/Transaction/State?paymentId={paymentId}");
+
+            if (response == null) return paid;
 
             if (!response.IsSuccessStatusCode)
             {
@@ -127,10 +120,12 @@ namespace GingerMintSoft.WorkFlows
             [DurableClient] IDurableOrchestrationClient starter,
             ILogger log)
         {
-            var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic request = JsonConvert.DeserializeObject(requestBody);
-
             var instanceId = Guid.NewGuid().ToString();
+
+            var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            dynamic paymentRequest = JsonConvert.DeserializeObject<ExpandoObject>(requestBody);
+            paymentRequest.webhookurl = $@"http://9ee4173063fe.ngrok.io/api/WebHookPaymentStatus?id={instanceId}";
+            var request = JsonConvert.SerializeObject(paymentRequest);
 
             // Function input comes from the request content.
             await starter.StartNewAsync("PaymentTransaction", instanceId, request);
@@ -142,7 +137,7 @@ namespace GingerMintSoft.WorkFlows
 
         [FunctionName("WebHookPaymentStatus")]
         public static async Task<IActionResult> WebHookPaymentStatus(
-            [HttpTrigger(AuthorizationLevel.Function, "get")]HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Function, "post")]HttpRequest req,
             [DurableClient] IDurableOrchestrationClient client,
             ILogger log)
         {
