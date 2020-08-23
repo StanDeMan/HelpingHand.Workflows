@@ -11,10 +11,35 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
-namespace GingerMintSoft.WorkFlows.Workflow
+namespace GingerMintSoft.WorkFlows
 {
+    // internal using: GingerMintSoft.WorkFlows.
+    using Communication;
+
     public static class FunctionPayment
     {
+        [FunctionName("DepositPayment")]
+        public static async Task<string> Payment([ActivityTrigger] string request, ILogger log)
+        {
+            var content = "";
+            var response = await Http.Create()
+                .Result.PostAsync("HelpingHands/Payment/Customer/Execute/Banktransfer", request);
+
+            if (response == null) return content;
+
+            if (!response.IsSuccessStatusCode)
+            {
+                log.LogInformation($"[2020.08.20:150240]: {response}.");
+            }
+            else
+            {
+                content = await response.Content.ReadAsStringAsync();
+                log.LogInformation($"DepositPayment: {content}.");
+            }
+
+            return $"{content}";
+        }
+
         [FunctionName("PaymentTransaction")]
         public static async Task<string> RunOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context, 
@@ -58,6 +83,62 @@ namespace GingerMintSoft.WorkFlows.Workflow
             log.LogInformation("************** Orchestration complete ********************");
             
             return statusPayment;
+        }
+
+        [FunctionName("PaymentStatus")]
+        public static async Task<IActionResult> WebHookPaymentStatus(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "WebHook/PaymentStatus")] HttpRequest req,
+            [DurableClient] IDurableOrchestrationClient client,
+            ILogger log)
+        {
+            var paymentStatus = "not paid";
+            var id = req.Query["id"];
+            var status = await client.GetStatusAsync(id);
+
+            if (status.RuntimeStatus != OrchestrationRuntimeStatus.Running)
+            {
+                log.LogInformation($"WebHookPaymentStatus: {status.RuntimeStatus}.");
+                return new NotFoundResult();
+            }
+
+            if (!req.HasFormContentType) 
+                return new OkObjectResult($"Status: {paymentStatus}");
+
+            var form = await req.ReadFormAsync();
+            string paymentId = form["id"];
+
+            if (string.IsNullOrEmpty(paymentId))
+            {
+                await client.RaiseEventAsync(id, "Paid", false);
+            }
+            else
+            {
+                var response = await Http.Create()
+                    .Result
+                    .GetAsync($"HelpingHands/Payment/Customer/Transaction/State?paymentId={paymentId}");
+
+                if (response == null) 
+                    return new NoContentResult();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    log.LogInformation($"[2020.08.20:150240]: {response}.");
+                }
+                else
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    log.LogInformation($"DepositPayment: {content}.");
+                    dynamic objOutput = JsonConvert.DeserializeObject(content);
+                    paymentStatus = objOutput.Status.Value == "paid" ? "paid" : "not paid";
+                }
+                
+                if (paymentStatus == "paid")
+                    await client.RaiseEventAsync(id, "Paid", true);
+                else
+                    await client.RaiseEventAsync(id, "Paid", false);
+            }
+
+            return new OkObjectResult($"Status: {paymentStatus}");
         }
 
         [FunctionName("StartBanktransfer")]
