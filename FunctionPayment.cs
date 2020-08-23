@@ -1,8 +1,10 @@
 using System;
 using System.Dynamic;
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using GingerMintSoft.WorkFlows.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
@@ -92,17 +94,21 @@ namespace GingerMintSoft.WorkFlows
             ILogger log)
         {
             var paymentStatus = "not paid";
+
+            // workflow id
             var id = req.Query["id"];
             var status = await client.GetStatusAsync(id);
 
             if (status.RuntimeStatus != OrchestrationRuntimeStatus.Running)
             {
-                log.LogInformation($"WebHookPaymentStatus: {status.RuntimeStatus}.");
+                log.LogInformation($"WebHook/PaymentStatus: {status.RuntimeStatus}.");
                 return new NotFoundResult();
             }
 
             if (!req.HasFormContentType) 
-                return new OkObjectResult($"Status: {paymentStatus}");
+            {
+                await client.RaiseEventAsync(id, "Paid", false);
+            }
 
             var form = await req.ReadFormAsync();
             string paymentId = form["id"];
@@ -113,29 +119,74 @@ namespace GingerMintSoft.WorkFlows
             }
             else
             {
-                var response = await Http.Create()
-                    .Result
-                    .GetAsync($"HelpingHands/Payment/Customer/Transaction/State?paymentId={paymentId}");
+                string content;
+                HttpResponseMessage response;
+                var httpClient = Http.Create().Result;
 
-                if (response == null) 
-                    return new NoContentResult();
+                try
+                {
+                    response = await httpClient
+                        .GetAsync($"HelpingHands/Payment/Customer/Transaction/State?paymentId={paymentId}");
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    log.LogInformation($"[2020.08.20:150240]: {response}.");
-                }
-                else
-                {
-                    var content = await response.Content.ReadAsStringAsync();
+                    response.EnsureSuccessStatusCode();
+                    content = await response.Content.ReadAsStringAsync();
                     log.LogInformation($"DepositPayment: {content}.");
-                    dynamic objOutput = JsonConvert.DeserializeObject(content);
-                    paymentStatus = objOutput.Status.Value == "paid" ? "paid" : "not paid";
                 }
-                
-                if (paymentStatus == "paid")
+                catch (Exception e)
+                {
+                    log.LogError($"[2020.08.20:150240]: {e}.");
+                    return new NoContentResult();
+                }
+
+                dynamic objContent = JsonConvert.DeserializeObject(content);
+                paymentStatus = objContent.Status.Value == "paid" ? "paid" : "not paid";
+                string taskId = objContent.Metadata.TaskId.Value;
+
+                if (!string.IsNullOrEmpty(taskId) &&
+                    !string.IsNullOrEmpty(paymentStatus) &&
+                    paymentStatus == "paid")
+                {
+                    UserTaskDto task;
+
+                    try
+                    {
+                        response = await httpClient
+                            .GetAsync($"HelpingHands/Users/Tasks/{taskId}");
+
+                        response.EnsureSuccessStatusCode();
+                        var taskResult = response.Content.ReadAsStringAsync().Result;
+                        task = JsonConvert.DeserializeObject<UserTaskDto>(taskResult);
+                    }
+                    catch (Exception e)
+                    {
+                        log.LogError($"[2020.08.23:145319]: {e}.");
+                        return new NotFoundResult();
+                    }
+
+                    try
+                    {
+                        task.Payed = true;
+                        task.TaskStatusTypeId = 6; // Geschlossen
+                        var jsonTask = JsonConvert.SerializeObject(task);
+
+                        response = await httpClient
+                            .PutAsync($"HelpingHands/Users/Tasks/{taskId}", jsonTask);
+
+                        response.EnsureSuccessStatusCode();
+                        //var taskUpdateResult = response.Content.ReadAsStringAsync().Result;
+                    }
+                    catch (Exception e)
+                    {
+                        log.LogError($"[2020.08.23:161144]: {e}.");
+                        return new NotFoundResult();
+                    }
+
                     await client.RaiseEventAsync(id, "Paid", true);
+                }
                 else
+                {
                     await client.RaiseEventAsync(id, "Paid", false);
+                }
             }
 
             return new OkObjectResult($"Status: {paymentStatus}");
@@ -152,7 +203,7 @@ namespace GingerMintSoft.WorkFlows
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic paymentRequest = JsonConvert.DeserializeObject<ExpandoObject>(requestBody);
 #if DEBUG
-            paymentRequest.webhookurl = $@"http://9ee4173063fe.ngrok.io/api/WebHook/PaymentStatus?id={instanceId}";
+            paymentRequest.webhookurl = $@"http://95aa4edfeaf5.ngrok.io/api/WebHook/PaymentStatus?id={instanceId}";
 #else
             paymentRequest.webhookurl = $@"https://gingermintsoftworkflows.azurewebsites.net/api/WebHook/PaymentStatus?id={instanceId}";
 #endif

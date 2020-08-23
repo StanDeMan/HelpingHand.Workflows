@@ -13,6 +13,8 @@ namespace GingerMintSoft.WorkFlows.Communication
 
     public class Http
     {
+        private const int TimeOut = 10000;
+
         private Http()
         {
             _client = new HttpClient();
@@ -87,7 +89,7 @@ namespace GingerMintSoft.WorkFlows.Communication
         public async Task<HttpResponseMessage> PostAsync(string relativeUri, string json)
         {
             var cts = new CancellationTokenSource();
-            cts.CancelAfter(5000);
+            cts.CancelAfter(TimeOut);
 
             try
             {
@@ -108,10 +110,34 @@ namespace GingerMintSoft.WorkFlows.Communication
             }
         }
 
+        public async Task<HttpResponseMessage> PutAsync(string relativeUri, string json)
+        {
+            var cts = new CancellationTokenSource();
+            cts.CancelAfter(TimeOut);
+
+            try
+            {
+                var uri = new Uri($"{BaseUri}/{relativeUri}");
+                var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _client.PutAsync(uri, httpContent, cts.Token);
+
+                return response.IsSuccessStatusCode 
+                    ? response 
+                    : null;
+            }
+            catch (Exception e)
+            {
+                Debug.Print(e.Message);
+                IsError = true;
+                return null;
+            }
+        }
+
         public async Task<HttpResponseMessage> GetAsync(string relativeUri)
         {
             var cts = new CancellationTokenSource();
-            cts.CancelAfter(5000);
+            cts.CancelAfter(TimeOut);
 
             try
             {
