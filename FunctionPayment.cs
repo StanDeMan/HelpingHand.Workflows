@@ -11,6 +11,7 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 
 namespace GingerMintSoft.WorkFlows
@@ -20,6 +21,29 @@ namespace GingerMintSoft.WorkFlows
 
     public static class FunctionPayment
     {
+        [FunctionName("StorePaymentStatus")]
+        public static async Task<string> StoreStatus(
+            [ActivityTrigger] PaymentTableDto tableDto,
+            [Table("PaymentTransactionStore")] CloudTable table,
+            ILogger log)
+        {
+            try
+            {
+                var tableOperationInsert = TableOperation.Insert(tableDto);
+                await table.ExecuteAsync(tableOperationInsert);
+
+                log.LogInformation($@"Table PaymentTransaction\State: {tableDto.State}.");
+            }
+            catch (Exception e)
+            {
+                log.LogInformation($@"PaymentTransaction\State Error: {e.Message}.");
+
+                return "failed";
+            }
+
+            return "created";
+        }
+
         [FunctionName("DepositPayment")]
         public static async Task<string> Payment([ActivityTrigger] string request, ILogger log)
         {
@@ -47,7 +71,8 @@ namespace GingerMintSoft.WorkFlows
             [OrchestrationTrigger] IDurableOrchestrationContext context, 
             ILogger log)
         {
-            var statusPayment = "Not paid";
+            var statusMsg = "undefined";
+            var statusPayment = "undefined";
 
             var requestBody = Convert.ToString(context.GetInput<dynamic>());
             var output = await context.CallActivityAsync<string>("DepositPayment", requestBody);
@@ -56,9 +81,22 @@ namespace GingerMintSoft.WorkFlows
             var outputObj = JsonConvert.DeserializeObject(output);
             if (outputObj.Status.Value != "open") return statusPayment;
 
+            var paymentTable = new PaymentTableDto(context.InstanceId, output);
+
+            try
+            {
+                statusMsg = await context.CallActivityAsync<string>("StorePaymentStatus", paymentTable);
+                log.LogInformation($"StorePaymentStatus: {statusMsg}.");
+            }
+            catch (Exception e)
+            {
+                log.LogError($"StorePaymentStatus: {statusMsg}: {e.Message}");
+            }
+
             using (var timeout = new CancellationTokenSource())
             {
-                var moderationDeadline = context.CurrentUtcDateTime.AddHours(24);
+                // wait two days till expiration - keep task alive
+                var moderationDeadline = context.CurrentUtcDateTime.AddHours(24 * 2);       
                 var durableTimeout = context.CreateTimer(moderationDeadline, timeout.Token);
                 var moderatedEvent = context.WaitForExternalEvent<bool>("Paid");
  
@@ -203,7 +241,7 @@ namespace GingerMintSoft.WorkFlows
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic paymentRequest = JsonConvert.DeserializeObject<ExpandoObject>(requestBody);
 #if DEBUG
-            paymentRequest.webhookurl = $@"http://95aa4edfeaf5.ngrok.io/api/WebHook/PaymentStatus?id={instanceId}";
+            paymentRequest.webhookurl = $@"http://7490adf996a3.ngrok.io/api/WebHook/PaymentStatus?id={instanceId}";
 #else
             paymentRequest.webhookurl = $@"https://gingermintsoftworkflows.azurewebsites.net/api/WebHook/PaymentStatus?id={instanceId}";
 #endif
