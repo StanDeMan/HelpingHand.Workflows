@@ -3,7 +3,7 @@
     "storage1": {
       "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Storage/storageAccounts/defaultwebwesteuroped291",
       "type": "storage.azure",
-      "connectionId": "AzureWebJobsStorage",
+      "connectionId": "AzureStorageSideConnection",
       "secretStore": "AzureAppSettings"
     }
   }

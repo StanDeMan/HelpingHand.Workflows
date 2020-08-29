@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using GingerMintSoft.WorkFlows.BusinessLogic;
 using GingerMintSoft.WorkFlows.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -79,7 +80,7 @@ namespace GingerMintSoft.WorkFlows
 
             if (output == null) return statusPayment;
             var outputObj = JsonConvert.DeserializeObject(output);
-            if (outputObj.Status.Value != "open") return statusPayment;
+            if (outputObj?.Status.Value != "open") return statusPayment;
 
             var paymentTable = new PaymentTableDto(context.InstanceId, output);
 
@@ -236,16 +237,12 @@ namespace GingerMintSoft.WorkFlows
             [DurableClient] IDurableOrchestrationClient starter,
             ILogger log)
         {
-            var instanceId = Guid.NewGuid().ToString();
-
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic paymentRequest = JsonConvert.DeserializeObject<ExpandoObject>(requestBody);
-#if DEBUG
-            paymentRequest.webhookurl = $@"http://7490adf996a3.ngrok.io/api/WebHook/PaymentStatus?id={instanceId}";
-#else
-            paymentRequest.webhookurl = $@"https://gingermintsoftworkflows.azurewebsites.net/api/WebHook/PaymentStatus?id={instanceId}";
-#endif
-            var request = JsonConvert.SerializeObject(paymentRequest);
+
+            var instanceId = Guid.NewGuid().ToString();
+            var taskId = paymentRequest.paymentMetaData.taskId;
+            var request = JsonConvert.SerializeObject(new EditRequest(instanceId, taskId).Enhance(paymentRequest));
 
             // Function input comes from the request content.
             await starter.StartNewAsync("PaymentTransaction", instanceId, request);
