@@ -18,7 +18,7 @@
             paymentRequest.redirecturl = $@"http://localhost:52719/taskstatus/{TaskId}";
 #else
             paymentRequest.webhookurl = $@"https://gingermintsoftworkflows.azurewebsites.net/api/WebHook/PaymentStatus?id={InstanceId}";
-            paymentRequest.redirecturl = $@"https://helpinghands.gingermintsoft.com/taskstatus/{TaskId}";
+            paymentRequest.redirecturl = $@"https://www.werebuzy.com/taskstatus/{TaskId}";
 #endif
             return paymentRequest;
         }
