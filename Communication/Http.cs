@@ -29,7 +29,7 @@ namespace GingerMintSoft.WorkFlows.Communication
 #if DEBUG
                 const string baseUriOwn = "http://localhost:52719";
 #else
-                const string baseUriOwn = "https://helpinghandsservices.azurewebsites.net";
+                const string baseUriOwn = "https://www.werebuzy.com";
 #endif
                 http = new Http
                 {

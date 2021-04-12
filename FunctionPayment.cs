@@ -205,7 +205,7 @@ namespace GingerMintSoft.WorkFlows
                     try
                     {
                         task.Payed = true;
-                        task.TaskStatusTypeId = 6; // Geschlossen
+                        task.TaskStatusTypeId = 7; // Geschlossen
                         var jsonTask = JsonConvert.SerializeObject(task);
 
                         response = await httpClient
