@@ -25,7 +25,8 @@ namespace GingerMintSoft.WorkFlows
         [FunctionName("StorePaymentStatus")]
         public static async Task<string> StoreStatus(
             [ActivityTrigger] PaymentTableDto tableDto,
-            [Table("PaymentTransactionStore")] CloudTable table,
+            //[Table("PaymentTransactionStore")] CloudTable table,
+            CloudTable table,
             ILogger log)
         {
             try
@@ -75,8 +76,8 @@ namespace GingerMintSoft.WorkFlows
             var statusMsg = "undefined";
             var statusPayment = "undefined";
 
-            var requestBody = Convert.ToString(context.GetInput<dynamic>());
-            var output = await context.CallActivityAsync<string>("DepositPayment", requestBody);
+            var requestBody = context.GetInput<object>();
+            var output = await context.CallActivityAsync<dynamic>("DepositPayment", requestBody);
 
             if (output == null) return statusPayment;
             var outputObj = JsonConvert.DeserializeObject(output);
